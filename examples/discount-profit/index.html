@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Discount vs Profit</title>
+<style>
+  @font-face { font-family: 'GS'; font-weight: 400; src: url(fonts/GoogleSans-Regular.ttf) format('truetype'); }
+  @font-face { font-family: 'GS'; font-weight: 700; src: url(fonts/GoogleSans-Bold.ttf) format('truetype'); }
+  :root {
+    --yellow: #FEE84E;
+    --cream:  #FFFEEA;
+    --sky:    #CEF1F9;
+    --ink:    #235360;
+    --cyan:   #0AB8DE;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--cream); }
+  body { font-family: 'GS', sans-serif; color: var(--ink); font-variant-numeric: tabular-nums; }
+  #stage { position: absolute; inset: 0; background: var(--cream); }
+  .abs { position: absolute; }
+  .mask { overflow: hidden; display: inline-block; vertical-align: top; padding: 0 4px; margin: 0 -4px; }
+  .mask > span { display: inline-block; will-change: transform; }
+  b, .b { font-weight: 700; }
+
+  #title { left: 120px; top: 64px; font-size: 92px; font-weight: 700; letter-spacing: -2px; line-height: 1.12; }
+
+  .card { top: 230px; width: 822px; height: 430px; border-radius: 36px; transform-origin: 50% 70%; }
+  #cardL { left: 120px; background: var(--sky); }
+  #cardR { left: 978px; background: var(--yellow); }
+  .card .label { position: absolute; left: 56px; top: 48px; font-size: 44px; line-height: 1.2; }
+  .card .price { position: absolute; left: 56px; top: 100px; display: flex; align-items: baseline; gap: 30px; font-size: 150px; font-weight: 700; letter-spacing: -4px; line-height: 1.1; }
+  .pill { display: inline-block; background: var(--ink); color: var(--yellow); font-weight: 700; padding: 2px 22px 6px; border-radius: 40px; margin-left: 10px; transform-origin: 30% 60%; }
+  #was { position: relative; font-size: 64px; font-weight: 400; letter-spacing: 0; opacity: .55; }
+  #was .strike { position: absolute; left: -6px; right: -6px; top: 52%; height: 6px; transform-origin: 0 50%; background: var(--ink); border-radius: 3px; }
+
+  .bar { position: absolute; left: 56px; top: 290px; width: 710px; height: 60px; }
+  .seg { position: absolute; top: 0; height: 60px; }
+  .seg.cost { left: 0; background: var(--ink); border-radius: 16px 0 0 16px; }
+  .seg.profit { background: var(--cyan); border-radius: 0 16px 16px 0; }
+  .seg.ghost { border: 4px dashed var(--ink); border-left: none; border-radius: 0 16px 16px 0; opacity: .5; }
+  .legend { position: absolute; top: 362px; font-size: 38px; line-height: 1.2; white-space: nowrap; }
+  .legend .dot { display: inline-block; width: 22px; height: 22px; border-radius: 6px; margin-right: 12px; vertical-align: 1px; }
+
+  #panel { left: 120px; top: 696px; width: 1680px; height: 262px; border-radius: 36px; background: var(--ink); color: var(--cream); transform-origin: 50% 100%; }
+  #pLeftLabel { left: 0; width: 900px; top: 40px; text-align: center; font-size: 40px; opacity: .85; }
+  #pFlow { left: 0; width: 900px; top: 92px; text-align: center; font-size: 120px; font-weight: 700; letter-spacing: -3px; line-height: 1.1; white-space: nowrap; }
+  #pFlow svg { display: inline-block; vertical-align: middle; margin: 0 22px; overflow: visible; }
+  #divider { left: 900px; top: 46px; width: 3px; height: 170px; background: var(--cream); opacity: .3; transform-origin: 50% 50%; }
+  #pPct { left: 903px; width: 777px; top: 14px; text-align: center; font-size: 176px; font-weight: 700; color: var(--yellow); letter-spacing: -5px; line-height: 1.1; }
+  #pRightLabel { left: 903px; width: 777px; top: 196px; text-align: center; font-size: 40px; opacity: .85; }
+
+  #foot { left: 120px; top: 990px; width: 1680px; font-size: 27px; line-height: 1.4; opacity: .7; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="title" class="abs"><span class="mask"><span id="titleIn">How a 30% discount affects profit</span></span></div>
+
+  <div id="cardL" class="abs card">
+    <div class="label"><span class="mask"><span id="lblL">Regular price</span></span></div>
+    <div class="price"><span class="mask"><span id="priceL">$100</span></span></div>
+    <div class="bar">
+      <div class="seg cost" id="costL"></div>
+      <div class="seg profit" id="profL"></div>
+    </div>
+    <div class="legend" id="lgCostL" style="left:56px"><span class="dot" style="background:var(--ink)"></span>Cost <b>$60</b></div>
+    <div class="legend" id="lgProfL" style="right:56px"><span class="dot" style="background:var(--cyan)"></span><b>Profit <span id="profLv">$40</span></b></div>
+  </div>
+
+  <div id="cardR" class="abs card">
+    <div class="label"><span class="mask"><span id="lblR">Black Friday</span></span><span class="pill" id="pill">30% off</span></div>
+    <div class="price"><span class="mask"><span id="priceR">$100</span></span><span id="was">$100<span class="strike" id="strike"></span></span></div>
+    <div class="bar">
+      <div class="seg cost" id="costR"></div>
+      <div class="seg profit" id="profR"></div>
+      <div class="seg ghost" id="ghostR"></div>
+    </div>
+    <div class="legend" id="lgCostR" style="left:56px"><span class="dot" style="background:var(--ink)"></span>Cost <b>$60</b></div>
+    <div class="legend" id="lgProfR" style="right:56px"><span class="dot" style="background:var(--cyan)"></span><b>Profit <span id="profRv">$40</span></b></div>
+  </div>
+
+  <div id="panel" class="abs">
+    <div id="pLeftLabel" class="abs"><span class="mask"><span id="pLL">Gross profit per item</span></span></div>
+    <div id="pFlow" class="abs"><span class="mask"><span id="f40">$40</span></span><svg width="110" height="60" viewBox="0 0 110 60"><path id="arrow" d="M4 30 H96 M74 8 L98 30 L74 52" fill="none" stroke="#FFFEEA" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="mask"><span id="f10">$10</span></span></div>
+    <div id="divider" class="abs"></div>
+    <div id="pPct" class="abs"><span class="mask"><span id="pct">−75%</span></span></div>
+    <div id="pRightLabel" class="abs"><span class="mask"><span id="pRL">Gross profit</span></span></div>
+  </div>
+
+  <div id="foot" class="abs">Illustrative figures assuming a fixed $60 product cost. Gross profit excludes advertising, shipping, and other operating expenses.</div>
+</div>
+
+<script>
+// ---- timing helpers: everything is a pure function of t -------------------
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const lerp = (a, b, p) => a + (b - a) * p;
+const prog = (t, t0, d) => clamp((t - t0) / d);
+const outCubic = p => 1 - Math.pow(1 - p, 3);
+const outQuint = p => 1 - Math.pow(1 - p, 5);
+const inCubic = p => p * p * p;
+const inOutCubic = p => p < .5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+// damped spring, settles at 1 with a small overshoot
+const spring = p => p <= 0 ? 0 : p >= 1 ? 1 : 1 - Math.exp(-6.5 * p) * Math.cos(9.5 * p);
+// enter (0→1) and exit (1→0) combined
+const io = (t, inAt, inDur, outAt, outDur, ein = spring, eout = inCubic) =>
+  t < outAt ? ein(prog(t, inAt, inDur)) : 1 - eout(prog(t, outAt, outDur));
+
+const $ = id => document.getElementById(id);
+const BAR = 710;                 // px for $100
+const px = v => BAR * v / 100;
+const money = v => '$' + Math.round(v);
+
+function rise(id, v) {           // masked type: v=1 in place, v=0 hidden below
+  $(id).style.transform = `translateY(${(1 - v) * 110}%)`;
+}
+function card(id, v) {
+  const el = $(id);
+  el.style.opacity = clamp(v * 1.6);
+  el.style.transform = `translateY(${(1 - v) * 90}px) scale(${0.94 + 0.06 * v})`;
+}
+
+window.seek = function (t) {
+  // ---------------- title
+  rise('titleIn', io(t, 0.10, 0.75, 13.55, 0.6, outQuint, inCubic));
+
+  // ---------------- cards
+  card('cardL', io(t, 0.40, 0.90, 12.75, 0.75));
+  card('cardR', io(t, 0.65, 0.90, 12.50, 0.75));
+  rise('lblL', io(t, 0.75, 0.6, 12.20, 0.45, outQuint));
+  rise('lblR', io(t, 1.00, 0.6, 12.10, 0.45, outQuint));
+
+  // regular price counts up 0 → 100
+  const cL = outCubic(prog(t, 0.85, 0.9));
+  rise('priceL', io(t, 0.80, 0.55, 11.95, 0.45, outQuint));
+  $('priceL').textContent = money(lerp(0, 100, cL));
+
+  // Black Friday price: counts up to 100, then the discount drops it to 70
+  const cR = outCubic(prog(t, 1.10, 0.9));
+  const drop = inOutCubic(prog(t, 2.70, 0.75));
+  rise('priceR', io(t, 1.05, 0.55, 11.85, 0.45, outQuint));
+  $('priceR').textContent = money(lerp(0, 100, cR) - 30 * drop);
+
+  // "30% off" pill stamps in
+  const pIn = spring(prog(t, 2.45, 0.6)), pOut = inCubic(prog(t, 11.9, 0.35));
+  $('pill').style.transform = `scale(${pIn * (1 - pOut)}) rotate(${(1 - pIn) * -12}deg)`;
+
+  // struck-through old price
+  const wIn = outCubic(prog(t, 2.85, 0.5)), wOut = inCubic(prog(t, 11.7, 0.35));
+  $('was').style.opacity = 0.55 * wIn * (1 - wOut);
+  $('was').style.transform = `translateX(${(1 - wIn) * 30}px)`;
+  $('strike').style.transform = `scaleX(${outCubic(prog(t, 3.05, 0.4))})`;
+
+  // ---------------- bars (true scale: full bar = $100)
+  const out = (a) => 1 - inOutCubic(prog(t, a, 0.6));
+  const costL = 60 * outQuint(prog(t, 1.15, 0.65)) * out(11.55);
+  const profL = 40 * outQuint(prog(t, 1.55, 0.6)) * out(11.35);
+  $('costL').style.width = px(costL) + 'px';
+  $('profL').style.left = px(costL) + 'px';
+  $('profL').style.width = px(profL) + 'px';
+  $('costL').style.borderRadius = profL > 0.3 ? '16px 0 0 16px' : '16px';
+
+  const costR = 60 * outQuint(prog(t, 1.40, 0.65)) * out(11.45);
+  const profFull = 40 * outQuint(prog(t, 1.80, 0.6));
+  const profR = (profFull - 30 * drop) * out(11.25);
+  $('costR').style.width = px(costR) + 'px';
+  $('profR').style.left = px(costR) + 'px';
+  $('profR').style.width = px(Math.max(0, profR)) + 'px';
+  $('costR').style.borderRadius = profR > 0.3 ? '16px 0 0 16px' : '16px';
+  // ghost of the $30 that the discount cut away
+  const g = drop > 0 ? (1 - outCubic(prog(t, 3.9, 0.9))) : 0;
+  $('ghostR').style.left = px(100 - 30 * drop) + 'px';
+  $('ghostR').style.width = px(30 * drop) + 'px';
+  $('ghostR').style.opacity = 0.55 * g;
+
+  // legends
+  const lg = (id, a, o) => {
+    const v = io(t, a, 0.6, o, 0.4, outQuint);
+    $(id).style.opacity = v; $(id).style.transform = `translateY(${(1 - v) * 24}px)`;
+  };
+  lg('lgCostL', 1.55, 11.40); lg('lgProfL', 1.85, 11.30);
+  lg('lgCostR', 1.80, 11.30); lg('lgProfR', 2.10, 11.20);
+  $('profLv').textContent = money(40);
+  $('profRv').textContent = money(40 - 30 * drop);
+
+  // ---------------- bottom panel
+  const pv = io(t, 3.35, 0.9, 10.95, 0.7);
+  $('panel').style.opacity = clamp(pv * 1.6);
+  $('panel').style.transform = `translateY(${(1 - pv) * 120}px) scaleY(${0.9 + 0.1 * pv})`;
+  rise('pLL', io(t, 3.60, 0.6, 10.60, 0.4, outQuint));
+  rise('f40', io(t, 3.70, 0.6, 10.55, 0.4, outQuint));
+  const arrow = $('arrow'), aLen = 160;
+  arrow.style.strokeDasharray = aLen;
+  arrow.style.strokeDashoffset = aLen * (1 - outCubic(prog(t, 3.95, 0.45))) + aLen * inCubic(prog(t, 10.5, 0.35));
+  rise('f10', io(t, 4.15, 0.6, 10.45, 0.4, outQuint));
+  $('divider').style.transform = `scaleY(${io(t, 3.85, 0.5, 10.5, 0.4, outCubic)})`;
+
+  // −75%: counts 0 → −75
+  const pctIn = outCubic(prog(t, 4.00, 0.85));
+  rise('pct', io(t, 3.95, 0.5, 10.65, 0.4, outQuint));
+  const pctV = Math.round(75 * pctIn);
+  $('pct').textContent = (pctV ? '−' : '') + pctV + '%';
+  rise('pRL', io(t, 4.30, 0.6, 10.55, 0.4, outQuint));
+
+  // ---------------- footnote
+  const f = io(t, 4.40, 0.5, 10.0, 0.4, outCubic, inCubic);
+  $('foot').style.opacity = 0.7 * f;
+  $('foot').style.transform = `translateY(${(1 - f) * 16}px)`;
+};
+
+window.DURATION = 15;
+document.fonts.ready.then(() => { window.seek(0); window.READY = true; });
+
+// live preview when opened in a browser: loop the 15 s
+if (!navigator.webdriver) {
+  const t0 = performance.now();
+  const tick = () => { window.seek(((performance.now() - t0) / 1000) % 15); requestAnimationFrame(tick); };
+  document.fonts.ready.then(tick);
+}
+</script>
+</body>
+</html>
