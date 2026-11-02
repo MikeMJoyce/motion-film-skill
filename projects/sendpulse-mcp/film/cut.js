@@ -251,12 +251,5 @@ window.CUT = {
   "w": 644,
   "h": 754,
   "src": "../assets/cut/g4_right.png"
- },
- "top_glow": {
-  "x": 118,
-  "y": 0,
-  "w": 1882,
-  "h": 349,
-  "src": "../assets/cut/top_glow.png"
  }
 };
