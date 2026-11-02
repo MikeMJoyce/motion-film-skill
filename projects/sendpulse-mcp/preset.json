@@ -1,0 +1,57 @@
+{
+  "from": "blank",
+  "name": "Blank preset",
+  "brand": {
+    "product": "",
+    "url": "",
+    "promise": "",
+    "hook": "",
+    "cta": "",
+    "audience": "",
+    "reference": "",
+    "must_show": "",
+    "must_avoid": ""
+  },
+  "colors": {
+    "bg": "",
+    "ink": "",
+    "ink2": "",
+    "accent": "",
+    "card": ""
+  },
+  "fonts": {
+    "display": {
+      "file": "",
+      "family": "",
+      "weight": null,
+      "tracking": ""
+    },
+    "ui": {
+      "file": "",
+      "family": ""
+    }
+  },
+  "timeline": {
+    "duration": null,
+    "fps": null,
+    "bpm": null,
+    "formats": [],
+    "music": {
+      "source": "",
+      "chords": [],
+      "seed": null
+    }
+  },
+  "voiceover": {
+    "provider": "",
+    "voice": "",
+    "model": "",
+    "lang": "",
+    "style": ""
+  },
+  "transcribe": {
+    "provider": ""
+  },
+  "style": {},
+  "notes": []
+}
