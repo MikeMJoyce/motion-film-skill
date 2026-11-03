@@ -166,10 +166,11 @@ save('orbit_glow', np.broadcast_to(BG, p4.shape) + (p4 - BG) / np.maximum(glow[.
 
 # ------------------------------------------------------------------ slides 3 and 4: pills on top, UI groups below, top glow plate
 s3, s2 = load(3), load(2)
-P3 = {'email': (254, 102, 554, 231), 'chatbot': (809, 107, 1191, 236), 'automation': (1383, 103, 1871, 230)}
-P4 = {'popups': (180, 104, 574, 230), 'landing': (725, 104, 1276, 230), 'crm': (1510, 104, 1794, 230)}
-for nm, b in P3.items(): card(s3, f'pill_{nm}', b, 62)
-for nm, b in P4.items(): card(s2, f'pill_{nm}', b, 62)
+# pill boxes measured on the outer pixel of each rim (no snapping: the top glow would pull the edge upwards)
+P3 = {'email': (253, 102, 556, 231), 'chatbot': (808, 106, 1192, 236), 'automation': (1383, 103, 1870, 230)}
+P4 = {'popups': (179, 104, 575, 230), 'landing': (724, 104, 1277, 230), 'crm': (1509, 104, 1794, 230)}
+for nm, b in P3.items(): card(s3, f'pill_{nm}', b, (b[3] - b[1]) // 2, snap=False)
+for nm, b in P4.items(): card(s2, f'pill_{nm}', b, (b[3] - b[1]) // 2, snap=False)
 group(s3, 'g3_left', (0, 724), (360, 1125), exclude=[(690, 360, 724, 372)])
 group(s3, 'g3_mid', (690, 1312), (300, 940), exclude=[(690, 372, 724, 940)])
 group(s3, 'g3_right', (1312, 2000), (330, 1125))

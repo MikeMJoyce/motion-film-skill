@@ -169,44 +169,44 @@ window.CUT = {
   "src": "../assets/cut/orbit_glow.png"
  },
  "pill_email": {
-  "x": 254,
+  "x": 253,
   "y": 102,
-  "w": 301,
+  "w": 303,
   "h": 129,
   "src": "../assets/cut/pill_email.png"
  },
  "pill_chatbot": {
-  "x": 809,
-  "y": 97,
-  "w": 382,
-  "h": 139,
+  "x": 808,
+  "y": 106,
+  "w": 384,
+  "h": 130,
   "src": "../assets/cut/pill_chatbot.png"
  },
  "pill_automation": {
   "x": 1383,
-  "y": 104,
+  "y": 103,
   "w": 487,
-  "h": 126,
+  "h": 127,
   "src": "../assets/cut/pill_automation.png"
  },
  "pill_popups": {
-  "x": 180,
+  "x": 179,
   "y": 104,
-  "w": 394,
+  "w": 396,
   "h": 126,
   "src": "../assets/cut/pill_popups.png"
  },
  "pill_landing": {
   "x": 724,
-  "y": 94,
-  "w": 552,
-  "h": 136,
+  "y": 104,
+  "w": 553,
+  "h": 126,
   "src": "../assets/cut/pill_landing.png"
  },
  "pill_crm": {
-  "x": 1510,
+  "x": 1509,
   "y": 104,
-  "w": 284,
+  "w": 285,
   "h": 126,
   "src": "../assets/cut/pill_crm.png"
  },
