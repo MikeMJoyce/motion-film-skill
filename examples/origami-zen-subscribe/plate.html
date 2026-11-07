@@ -1,0 +1,210 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Origami Zen subscribe</title>
+<style>
+@font-face { font-family: Cormorant; src: url(assets/cormorant.woff2) format('woff2'); font-weight: 600; }
+@font-face { font-family: InterV; src: url(assets/inter.woff2) format('woff2'); font-weight: 100 900; }
+:root {
+  --paper: #F8F2E7; --paper-edge: #E6D6BF; --ink: #2A2420; --shu: #D2452F; --shu-dark: #A93422;
+  --sakura: #F2AFC0; --gold: #D9A55B; --done: #E8DECF;
+}
+html, body { margin: 0; width: 1920px; height: 1080px; background: transparent; overflow: hidden; }
+#stage { position: absolute; inset: 0; perspective: 1400px; }
+#card {
+  position: absolute; left: 380px; top: 755px; width: 1160px; height: 190px; box-sizing: border-box;
+  background: var(--paper); border: 3px solid var(--paper-edge); border-radius: 95px;
+  transform-origin: 50% 0%; overflow: hidden;
+}
+/* paper fibre + a diagonal crease, like a folded sheet */
+#card::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit;
+  background:
+    linear-gradient(115deg, rgba(255,255,255,0) 48%, rgba(255,255,255,.55) 50%, rgba(160,130,95,.10) 50.4%, rgba(255,255,255,0) 54%),
+    radial-gradient(circle at 20% 30%, rgba(217,165,91,.07), transparent 60%);
+}
+#shade { position: absolute; inset: 0; background: #7A5C3E; opacity: 0; border-radius: inherit; }
+#avatar {
+  position: absolute; left: 22px; top: 19px; width: 146px; height: 146px; border-radius: 50%;
+  background: url(assets/avatar.jpg) center/cover; box-shadow: 0 0 0 5px var(--paper), 0 0 0 9px var(--sakura);
+}
+#name {
+  position: absolute; left: 200px; top: 34px; font: 600 80px/1 Cormorant, serif; color: var(--ink);
+  letter-spacing: .5px; white-space: nowrap;
+}
+#rule { position: absolute; left: 204px; top: 128px; height: 4px; width: 300px; background: var(--gold);
+  border-radius: 2px; transform-origin: 0 50%; }
+#btn {
+  position: absolute; left: 698px; top: 46px; width: 330px; height: 92px; border-radius: 46px;
+  background: var(--shu); color: #fff; display: flex; align-items: center; justify-content: center; gap: 14px;
+  font: 750 34px/1 InterV, sans-serif; letter-spacing: 2px; overflow: hidden;
+}
+#btn .lbl { position: relative; z-index: 2; display: flex; align-items: center; gap: 12px; }
+#ripple { position: absolute; width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,.45);
+  left: 0; top: 0; opacity: 0; z-index: 1; }
+#bell {
+  position: absolute; left: 1046px; top: 46px; width: 92px; height: 92px; border-radius: 50%;
+  background: var(--paper); box-shadow: inset 0 0 0 3px var(--paper-edge);
+  display: flex; align-items: center; justify-content: center;
+}
+#bell svg { width: 50px; height: 50px; overflow: visible; }
+#rays { position: absolute; left: 1046px; top: 46px; width: 92px; height: 92px; pointer-events: none; }
+#cursor { position: absolute; left: 0; top: 0; width: 56px; height: 56px; transform-origin: 6px 4px; }
+#petals { position: absolute; inset: 0; }
+.petal { position: absolute; left: 0; top: 0; width: 26px; height: 20px; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="card">
+    <div id="avatar"></div>
+    <div id="name">Origami Zen</div>
+    <div id="rule"></div>
+    <div id="btn"><div id="ripple"></div><div class="lbl" id="lbl">SUBSCRIBE</div></div>
+    <div id="bell">
+      <svg viewBox="-12 -12 24 24"><g id="bellG">
+        <path id="bellBody" d="M0,-9 C-4.6,-9 -6.6,-5.6 -6.6,-1.6 L-6.6,3 L-8.6,5.6 L8.6,5.6 L6.6,3 L6.6,-1.6 C6.6,-5.6 4.6,-9 0,-9 Z"
+              fill="none" stroke="#2A2420" stroke-width="1.9" stroke-linejoin="round"/>
+        <circle cx="0" cy="-9.6" r="1.3" fill="#2A2420"/>
+        <path id="clapper" d="M-2.6,7.4 A2.6,2.6 0 0 0 2.6,7.4" fill="none" stroke="#2A2420" stroke-width="1.9" stroke-linecap="round"/>
+      </g></svg>
+    </div>
+    <svg id="rays" viewBox="0 0 92 92"></svg>
+    <div id="shade"></div>
+  </div>
+  <div id="petals"></div>
+  <svg id="cursor" viewBox="0 0 28 28">
+    <path d="M3,2 L3,22 L8.2,17.2 L11.6,25 L15.2,23.4 L11.8,15.8 L19,15.8 Z" fill="#fff" stroke="#1d1a17" stroke-width="1.8" stroke-linejoin="round"/>
+  </svg>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const lerp = (a, b, k) => a + (b - a) * k;
+const ease = k => (k = clamp(k), k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
+const easeOut = k => 1 - Math.pow(1 - clamp(k), 3);
+const easeIn = k => Math.pow(clamp(k), 3);
+// damped spring 0 -> 1 starting at t0
+function spring(t, t0, f = 2.2, z = 0.55) {
+  const x = t - t0; if (x <= 0) return 0;
+  const w = 2 * Math.PI * f, wd = w * Math.sqrt(1 - z * z);
+  return 1 - Math.exp(-z * w * x) * (Math.cos(wd * x) + (z * w / wd) * Math.sin(wd * x));
+}
+
+// ---- timeline (seconds) ----
+const DUR = 6.0;
+const T = { in: 0.12, avatar: 0.42, name: 0.56, rule: 0.72, btn: 0.80, bell: 0.94,
+  cur1: 1.30, cur1e: 2.02, click1: 2.12, cur2: 2.62, cur2e: 3.18, click2: 3.30, curOut: 4.05, curOute: 4.65,
+  out: 5.22, oute: 5.86 };
+
+// absolute positions (stage px)
+const CARD = { x: 380, y: 755 };
+const BTN = { x: CARD.x + 698 + 165, y: CARD.y + 46 + 46 };
+const BELL = { x: CARD.x + 1046 + 46, y: CARD.y + 46 + 46 };
+const P0 = { x: 1780, y: 1130 }, P1 = { x: BTN.x + 40, y: BTN.y + 6 }, P2 = { x: BELL.x + 6, y: BELL.y + 8 }, P3 = { x: 1860, y: 1150 };
+
+// petals: deterministic
+let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+const PETALS = Array.from({ length: 16 }, (_, i) => ({
+  ang: -Math.PI / 2 + (rnd() - .5) * 2.6, v: 260 + rnd() * 380, spin: (rnd() - .5) * 900, s: 1.3 + rnd() * 1.1,
+  delay: rnd() * .12, col: rnd() < .55 ? '#F2AFC0' : (rnd() < .5 ? '#F8D3DC' : '#E98FA6'), sway: rnd() * 6.28,
+}));
+const petalSvg = c => `<svg class="petal" viewBox="0 0 26 20"><path d="M1,10 C6,1 18,0 25,6 C22,8 22,12 25,14 C18,20 6,19 1,10 Z" fill="${c}"/><path d="M3,10 C10,9 17,9 22,10" stroke="rgba(255,255,255,.55)" stroke-width="1" fill="none"/></svg>`;
+$('petals').innerHTML = PETALS.map(p => petalSvg(p.col)).join('');
+const petalEls = [...document.querySelectorAll('.petal')];
+
+$('rays').innerHTML = Array.from({ length: 8 }, (_, i) => {
+  const a = i / 8 * Math.PI * 2 - Math.PI / 2;
+  return `<line class="ray" data-a="${a}" stroke="#D9A55B" stroke-width="5" stroke-linecap="round"/>`;
+}).join('');
+const rayEls = [...document.querySelectorAll('.ray')];
+
+const CHECK = '<svg width="30" height="30" viewBox="0 0 24 24"><path d="M5 12.5 L10 17.5 L19 7" fill="none" stroke="#2A2420" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+let lblState = -1;
+
+function pop(el, t, t0, from = .6, f = 2.6, z = .5) {
+  const k = spring(t, t0, f, z);
+  el.style.opacity = clamp((t - t0) / .12);
+  el.style.transform = `scale(${lerp(from, 1, k)})`;
+}
+
+window.seek = function (t) {
+  // card unfold (rotateX from flat-folded) and fold-away exit
+  const kin = spring(t, T.in, 1.6, .62);
+  const kout = easeIn((t - T.out) / (T.oute - T.out));
+  const rx = lerp(-92, 0, kin) + 95 * kout;
+  const card = $('card');
+  card.style.transform = `translateY(${lerp(40, 0, kin) + 30 * kout}px) rotateX(${rx}deg) scale(${lerp(.92, 1, kin) - .06 * kout})`;
+  card.style.opacity = t < T.in ? 0 : clamp((t - T.in) / .1) * (1 - clamp((t - T.out - .45) / .15));
+  $('shade').style.opacity = clamp(Math.abs(rx) / 90) * .35;
+
+  pop($('avatar'), t, T.avatar, .4);
+  const kn = spring(t, T.name, 2.0, .7);
+  $('name').style.opacity = clamp((t - T.name) / .2);
+  $('name').style.transform = `translateY(${lerp(34, 0, kn)}px)`;
+  $('rule').style.transform = `scaleX(${easeOut((t - T.rule) / .55)})`;
+  pop($('btn'), t, T.btn, .55);
+  pop($('bell'), t, T.bell, .4);
+
+  // button press + state change
+  const press = t >= T.click1 ? Math.sin(clamp((t - T.click1) / .2) * Math.PI) : 0;
+  const subscribed = t >= T.click1 + .1;
+  const btn = $('btn');
+  if (t >= T.btn) btn.style.transform = `scale(${(t < T.btn + 1 ? lerp(.55, 1, spring(t, T.btn, 2.6, .5)) : 1) * (1 - .07 * press)})`;
+  const kc = clamp((t - T.click1 - .06) / .16);
+  btn.style.background = kc <= 0 ? 'var(--shu)' : kc >= 1 ? 'var(--done)' : `color-mix(in srgb, var(--done) ${kc * 100}%, var(--shu))`;
+  btn.style.color = subscribed ? '#2A2420' : '#fff';
+  const st = subscribed ? 1 : 0;
+  if (st !== lblState) { $('lbl').innerHTML = st ? `${CHECK}SUBSCRIBED` : 'SUBSCRIBE'; lblState = st; }
+  if (subscribed) $('lbl').style.transform = `scale(${lerp(.7, 1, spring(t, T.click1 + .1, 3, .45))})`;
+  else $('lbl').style.transform = '';
+  const rk = (t - T.click1) / .6, rp = $('ripple');
+  rp.style.opacity = rk > 0 && rk < 1 ? (1 - rk) : 0;
+  rp.style.transform = `translate(${205 - 20}px, ${52 - 20}px) scale(${lerp(.3, 12, easeOut(rk))})`;
+
+  // bell: press, ring, fill
+  const bpress = t >= T.click2 ? Math.sin(clamp((t - T.click2) / .2) * Math.PI) : 0;
+  const bk = t >= T.bell ? (t < T.bell + 1 ? lerp(.4, 1, spring(t, T.bell, 2.6, .5)) : 1) : .4;
+  $('bell').style.transform = `scale(${bk * (1 - .1 * bpress)})`;
+  const on = t >= T.click2 + .08, x = t - T.click2 - .08;
+  const ring = on ? 28 * Math.exp(-x * 2.6) * Math.sin(x * 2 * Math.PI * 3.2) : 0;
+  $('bellG').style.transform = `rotate(${ring}deg)`; $('bellG').style.transformOrigin = '0px -9px';
+  $('clapper').style.transform = `translateX(${-ring * .09}px)`;
+  $('bellBody').setAttribute('fill', on ? '#D2452F' : 'none');
+  $('bellBody').setAttribute('stroke', on ? '#A93422' : '#2A2420');
+  $('bell').style.background = on ? '#FBE9E3' : 'var(--paper)';
+  const ry = (t - T.click2 - .08) / .55;
+  rayEls.forEach(l => {
+    const a = +l.dataset.a, r0 = 50 + 22 * easeOut(ry), r1 = r0 + 14 * (1 - easeOut(ry)) + 2;
+    l.setAttribute('x1', 46 + Math.cos(a) * r0); l.setAttribute('y1', 46 + Math.sin(a) * r0);
+    l.setAttribute('x2', 46 + Math.cos(a) * r1); l.setAttribute('y2', 46 + Math.sin(a) * r1);
+    l.style.opacity = ry > 0 && ry < 1 ? 1 - easeIn(ry) : 0;
+  });
+
+  // sakura petals from the bell
+  petalEls.forEach((el, i) => {
+    const p = PETALS[i], x = t - T.click2 - .06 - p.delay;
+    if (x <= 0 || x > 2.4) { el.style.opacity = 0; return; }
+    const px = BELL.x + Math.cos(p.ang) * p.v * x * Math.exp(-x * .9) + Math.sin(x * 3 + p.sway) * 18;
+    const py = BELL.y + Math.sin(p.ang) * p.v * x * Math.exp(-x * .9) + 70 * x * x;
+    el.style.opacity = clamp(x / .08) * (1 - clamp((x - 1.6) / .8));
+    el.style.transform = `translate(${px - 13}px, ${py - 10}px) rotate(${p.spin * x}deg) scale(${p.s})`;
+  });
+
+  // cursor path
+  let c, vis = 1;
+  if (t < T.cur1) { c = P0; vis = 0; }
+  else if (t < T.cur2) c = { x: lerp(P0.x, P1.x, ease((t - T.cur1) / (T.cur1e - T.cur1))), y: lerp(P0.y, P1.y, ease((t - T.cur1) / (T.cur1e - T.cur1))) };
+  else if (t < T.curOut) { const k = ease((t - T.cur2) / (T.cur2e - T.cur2)); c = { x: lerp(P1.x, P2.x, k), y: lerp(P1.y, P2.y, k) - Math.sin(k * Math.PI) * 30 }; }
+  else { const k = ease((t - T.curOut) / (T.curOute - T.curOut)); c = { x: lerp(P2.x, P3.x, k), y: lerp(P2.y, P3.y, k) }; if (k >= 1) vis = 0; }
+  const cp = Math.max(press, bpress);
+  const cur = $('cursor');
+  cur.style.opacity = vis;
+  cur.style.transform = `translate(${c.x - 6}px, ${c.y - 4}px) scale(${1 - .18 * cp})`;
+};
+window.DUR = DUR;
+window.seek(0);
+</script>
+</body>
+</html>
