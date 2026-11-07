@@ -1,0 +1,171 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Origami Zen like</title>
+<style>
+@font-face { font-family: Cormorant; src: url(assets/cormorant.woff2) format('woff2'); font-weight: 600; }
+@font-face { font-family: InterV; src: url(assets/inter.woff2) format('woff2'); font-weight: 100 900; }
+:root { --paper: #F8F2E7; --paper-edge: #E6D6BF; --ink: #2A2420; --shu: #D2452F; --sakura: #F2AFC0; --gold: #D9A55B; }
+html, body { margin: 0; width: 1920px; height: 1080px; background: transparent; overflow: hidden; }
+#stage { position: absolute; inset: 0; perspective: 1400px; }
+#card {
+  position: absolute; left: 420px; top: 755px; width: 1080px; height: 190px; box-sizing: border-box;
+  background: var(--paper); border: 3px solid var(--paper-edge); border-radius: 95px;
+  transform-origin: 50% 0%; overflow: hidden;
+}
+#card::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit;
+  background:
+    linear-gradient(115deg, rgba(255,255,255,0) 48%, rgba(255,255,255,.55) 50%, rgba(160,130,95,.10) 50.4%, rgba(255,255,255,0) 54%),
+    radial-gradient(circle at 20% 30%, rgba(217,165,91,.07), transparent 60%);
+}
+#shade { position: absolute; inset: 0; background: #7A5C3E; opacity: 0; border-radius: inherit; }
+#avatar {
+  position: absolute; left: 22px; top: 19px; width: 146px; height: 146px; border-radius: 50%;
+  background: url(assets/avatar.jpg) center/cover; box-shadow: 0 0 0 5px var(--paper), 0 0 0 9px var(--sakura);
+}
+#name { position: absolute; left: 200px; top: 34px; font: 600 80px/1 Cormorant, serif; color: var(--ink); white-space: nowrap; }
+#rule { position: absolute; left: 204px; top: 128px; height: 4px; width: 300px; background: var(--gold);
+  border-radius: 2px; transform-origin: 0 50%; }
+#btn {
+  position: absolute; left: 734px; top: 46px; width: 300px; height: 92px; border-radius: 46px; box-sizing: border-box;
+  border: 4px solid var(--shu); background: var(--paper); color: var(--shu);
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+  font: 750 36px/1 InterV, sans-serif; letter-spacing: 2px;
+}
+#btn .lbl { position: relative; z-index: 2; display: flex; align-items: center; gap: 16px; }
+#word { width: 128px; text-align: left; display: inline-block; transform-origin: 0 50%; }
+#thumb { width: 46px; height: 46px; overflow: visible; }
+#thumb g { transform-box: view-box; transform-origin: 7px 22px; }
+#fill { position: absolute; inset: 0; background: var(--shu); border-radius: 50%; z-index: 1;
+  width: 60px; height: 60px; left: 0; top: 0; }
+#rays { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: visible; pointer-events: none; }
+#cursor { position: absolute; left: 0; top: 0; width: 56px; height: 56px; transform-origin: 6px 4px; }
+#petals { position: absolute; inset: 0; }
+.petal { position: absolute; left: 0; top: 0; width: 26px; height: 20px; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="card">
+    <div id="avatar"></div>
+    <div id="name">Origami Zen</div>
+    <div id="rule"></div>
+    <div id="btn"><div id="fill"></div><div class="lbl">
+      <!-- thumbs-up outline after Lucide (ISC licence) -->
+      <svg id="thumb" viewBox="0 0 24 24"><g id="thumbG" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path id="thumbBody" d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"/>
+        <path id="thumbCuff" d="M7 10v12"/>
+      </g></svg>
+      <span id="word">LIKE</span>
+    </div></div>
+    <div id="shade"></div>
+  </div>
+  <svg id="rays"></svg>
+  <div id="petals"></div>
+  <svg id="cursor" viewBox="0 0 28 28">
+    <path d="M3,2 L3,22 L8.2,17.2 L11.6,25 L15.2,23.4 L11.8,15.8 L19,15.8 Z" fill="#fff" stroke="#1d1a17" stroke-width="1.8" stroke-linejoin="round"/>
+  </svg>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const lerp = (a, b, k) => a + (b - a) * k;
+const ease = k => (k = clamp(k), k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
+const easeOut = k => 1 - Math.pow(1 - clamp(k), 3);
+const easeIn = k => Math.pow(clamp(k), 3);
+function spring(t, t0, f = 2.2, z = 0.55) {
+  const x = t - t0; if (x <= 0) return 0;
+  const w = 2 * Math.PI * f, wd = w * Math.sqrt(1 - z * z);
+  return 1 - Math.exp(-z * w * x) * (Math.cos(wd * x) + (z * w / wd) * Math.sin(wd * x));
+}
+
+// ---- timeline (seconds) ----
+const DUR = 5.5;
+const T = { in: 0.12, avatar: 0.42, name: 0.56, rule: 0.72, btn: 0.84, nudge: 1.25,
+  cur: 1.35, cure: 2.05, click: 2.15, curOut: 3.05, curOute: 3.65, out: 4.72, oute: 5.36 };
+
+const CARD = { x: 420, y: 755 };
+const BTN = { x: CARD.x + 734, y: CARD.y + 46, w: 300, h: 92 };
+const THUMB = { x: BTN.x + 78, y: BTN.y + 46 };   // centre of the thumb icon on screen
+const P0 = { x: 1760, y: 1130 }, P1 = { x: THUMB.x + 8, y: THUMB.y + 10 }, P2 = { x: 1840, y: 1150 };
+
+let seed = 5; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+const PETALS = Array.from({ length: 18 }, () => ({
+  ang: -Math.PI / 2 + (rnd() - .5) * 2.8, v: 280 + rnd() * 380, spin: (rnd() - .5) * 900, s: 1.3 + rnd() * 1.1,
+  delay: rnd() * .12, col: rnd() < .55 ? '#F2AFC0' : (rnd() < .5 ? '#F8D3DC' : '#E98FA6'), sway: rnd() * 6.28,
+}));
+$('petals').innerHTML = PETALS.map(p => `<svg class="petal" viewBox="0 0 26 20"><path d="M1,10 C6,1 18,0 25,6 C22,8 22,12 25,14 C18,20 6,19 1,10 Z" fill="${p.col}"/><path d="M3,10 C10,9 17,9 22,10" stroke="rgba(255,255,255,.55)" stroke-width="1" fill="none"/></svg>`).join('');
+const petalEls = [...document.querySelectorAll('.petal')];
+$('rays').innerHTML = Array.from({ length: 10 }, (_, i) =>
+  `<line class="ray" data-a="${i / 10 * Math.PI * 2 - Math.PI / 2}" stroke="#D9A55B" stroke-width="5" stroke-linecap="round"/>`).join('');
+const rayEls = [...document.querySelectorAll('.ray')];
+
+function pop(el, t, t0, from = .6, f = 2.6, z = .5) {
+  el.style.opacity = clamp((t - t0) / .12);
+  el.style.transform = `scale(${lerp(from, 1, spring(t, t0, f, z))})`;
+}
+
+window.seek = function (t) {
+  // card: unfold from a flat fold, fold away at the end
+  const kin = spring(t, T.in, 1.6, .62), kout = easeIn((t - T.out) / (T.oute - T.out));
+  const rx = lerp(-92, 0, kin) + 95 * kout, card = $('card');
+  card.style.transform = `translateY(${lerp(40, 0, kin) + 30 * kout}px) rotateX(${rx}deg) scale(${lerp(.92, 1, kin) - .06 * kout})`;
+  card.style.opacity = t < T.in ? 0 : clamp((t - T.in) / .1) * (1 - clamp((t - T.out - .45) / .15));
+  $('shade').style.opacity = clamp(Math.abs(rx) / 90) * .35;
+
+  pop($('avatar'), t, T.avatar, .4);
+  $('name').style.opacity = clamp((t - T.name) / .2);
+  $('name').style.transform = `translateY(${lerp(34, 0, spring(t, T.name, 2.0, .7))}px)`;
+  $('rule').style.transform = `scaleX(${easeOut((t - T.rule) / .55)})`;
+
+  // button: pop in, a small "come on" nudge of the thumb, press
+  const btn = $('btn');
+  const press = t >= T.click ? Math.sin(clamp((t - T.click) / .2) * Math.PI) : 0;
+  btn.style.opacity = clamp((t - T.btn) / .12);
+  btn.style.transform = `scale(${lerp(.55, 1, spring(t, T.btn, 2.6, .5)) * (1 - .07 * press)})`;
+  const liked = t >= T.click + .08, x = t - T.click - .08;
+  const nudge = t > T.nudge && t < T.click ? -10 * Math.sin((t - T.nudge) * 2 * Math.PI * 1.6) * Math.exp(-(t - T.nudge) * 2.2) : 0;
+  const jump = liked ? -22 * Math.exp(-x * 4) * Math.sin(x * 2 * Math.PI * 2.4) : 0;
+  const grow = liked ? 1 + .45 * Math.exp(-x * 5) * Math.sin(Math.min(x * 2 * Math.PI * 2.2, Math.PI)) : 1;
+  $('thumbG').style.transform = `rotate(${nudge + jump}deg) scale(${grow})`;
+  // vermilion fills the button from the click point
+  const kf = easeOut(x / .35), fill = $('fill');
+  fill.style.transform = `translate(${78 - 4 - 30}px, ${46 - 4 - 30}px) scale(${liked ? lerp(.2, 13, kf) : 0})`;
+  btn.style.color = liked && kf > .35 ? '#fff' : 'var(--shu)';
+  $('thumbBody').setAttribute('fill', liked ? (kf > .35 ? '#fff' : 'none') : 'none');
+  $('word').textContent = liked ? 'LIKED' : 'LIKE';
+  $('word').style.transform = liked ? `scale(${lerp(.75, 1, spring(t, T.click + .08, 3, .45))})` : '';
+
+  // golden rays and sakura petals out of the thumb
+  const ry = x / .55;
+  rayEls.forEach(l => {
+    const a = +l.dataset.a, r0 = 56 + 34 * easeOut(ry), r1 = r0 + 18 * (1 - easeOut(ry)) + 2;
+    l.setAttribute('x1', THUMB.x + Math.cos(a) * r0); l.setAttribute('y1', THUMB.y + Math.sin(a) * r0);
+    l.setAttribute('x2', THUMB.x + Math.cos(a) * r1); l.setAttribute('y2', THUMB.y + Math.sin(a) * r1);
+    l.style.opacity = ry > 0 && ry < 1 ? 1 - easeIn(ry) : 0;
+  });
+  petalEls.forEach((el, i) => {
+    const p = PETALS[i], k = t - T.click - .06 - p.delay;
+    if (k <= 0 || k > 2.4) { el.style.opacity = 0; return; }
+    const px = THUMB.x + Math.cos(p.ang) * p.v * k * Math.exp(-k * .9) + Math.sin(k * 3 + p.sway) * 18;
+    const py = THUMB.y + Math.sin(p.ang) * p.v * k * Math.exp(-k * .9) + 70 * k * k;
+    el.style.opacity = clamp(k / .08) * (1 - clamp((k - 1.6) / .8));
+    el.style.transform = `translate(${px - 13}px, ${py - 10}px) rotate(${p.spin * k}deg) scale(${p.s})`;
+  });
+
+  // cursor
+  let c, vis = 1;
+  if (t < T.cur) { c = P0; vis = 0; }
+  else if (t < T.curOut) { const k = ease((t - T.cur) / (T.cure - T.cur)); c = { x: lerp(P0.x, P1.x, k), y: lerp(P0.y, P1.y, k) }; }
+  else { const k = ease((t - T.curOut) / (T.curOute - T.curOut)); c = { x: lerp(P1.x, P2.x, k), y: lerp(P1.y, P2.y, k) }; if (k >= 1) vis = 0; }
+  const cur = $('cursor');
+  cur.style.opacity = vis;
+  cur.style.transform = `translate(${c.x - 6}px, ${c.y - 4}px) scale(${1 - .18 * press})`;
+};
+window.DUR = DUR;
+window.seek(0);
+</script>
+</body>
+</html>
