@@ -1,0 +1,317 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Luxury Brands</title>
+<style>
+  @font-face { font-family: 'GS'; font-weight: 700; src: url(fonts/GoogleSans-Bold.ttf) format('truetype'); }
+  html, body { margin: 0; padding: 0; background: transparent; overflow: hidden; }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="c" width="1920" height="1080"></canvas>
+<script>
+// "Luxury Brands" — 4 s. Every frame is a pure function of t: window.seek(t).
+// 0.0–1.3  letters rise in gold, dust gathers, shimmer sweeps
+// 1.3–1.95 rich: glow breathes, sparkles twinkle
+// 2.00     a glint / flare hits the word
+// 2.0–2.5  cracks run out from the hit, gold drains to grey, glow dies, dust falls
+// 2.5–4.0  dull, cracked, two chips drop off, the word sinks a little
+const W = 1920, H = 1080, BG = new URLSearchParams(location.search).get('bg'); // 'green' or transparent
+const TEXT = 'Luxury Brands', FONT_PX = 210, FONT = `700 ${FONT_PX}px GS`;
+const T_HIT = 2.0;
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+const mk = () => { const c = document.createElement('canvas'); c.width = W; c.height = H; return c; };
+const L = { mask: mk(), gold: mk(), dull: mk(), text: mk(), glow: mk() };
+const X = Object.fromEntries(Object.entries(L).map(([k, c]) => [k, c.getContext('2d')]));
+
+// ---------- helpers ----------
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, k) => a + (b - a) * k;
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const easeOut = k => 1 - Math.pow(1 - k, 3);
+const easeInOut = k => k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+const backOut = k => { const s = 1.6; return 1 + (s + 1) * Math.pow(k - 1, 3) + s * Math.pow(k - 1, 2); };
+function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function hash2(x, y) { const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return s - Math.floor(s); }
+function vnoise(x, y) { const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
+  const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+  return lerp(lerp(hash2(xi, yi), hash2(xi + 1, yi), u), lerp(hash2(xi, yi + 1), hash2(xi + 1, yi + 1), u), v) * 2 - 1; }
+
+// ---------- layout ----------
+ctx.font = FONT;
+let letters = [], textW = 0, baseY = 0, left = 0, capTop = 0, capBot = 0;
+function layout() {
+  ctx.font = FONT;
+  textW = ctx.measureText(TEXT).width;
+  left = (W - textW) / 2;
+  const m = ctx.measureText('Lxy');
+  baseY = H / 2 + (m.actualBoundingBoxAscent - m.actualBoundingBoxDescent) / 2 + 10;
+  capTop = baseY - m.actualBoundingBoxAscent; capBot = baseY + m.actualBoundingBoxDescent;
+  letters = [];
+  for (let i = 0; i < TEXT.length; i++) {
+    const x = left + ctx.measureText(TEXT.slice(0, i)).width;
+    const w = ctx.measureText(TEXT[i]).width;
+    letters.push({ ch: TEXT[i], x, w, cx: x + w / 2 });
+  }
+}
+
+// ---------- crack geometry: a warped polar grid around the hit ----------
+const HIT = { x: 0, y: 0 };
+const NRAD = 11, RINGS = [0, 70, 170, 300, 470, 700, 1100];
+let radAng = [], cells = [];
+function warp(th, r) { // shared edges map identically, so neighbouring cells meet exactly
+  const a = th + 0.22 * vnoise(Math.cos(th) * 3 + r * 0.012, Math.sin(th) * 3 + r * 0.004) * clamp(r / 60);
+  const rr = r + 28 * vnoise(th * 2.1 + 9, r * 0.01) * clamp(r / 80);
+  return [HIT.x + Math.cos(a) * rr * 1.25, HIT.y + Math.sin(a) * rr * 0.8];
+}
+function buildCracks() {
+  HIT.x = letters[3].cx + 10; HIT.y = baseY - FONT_PX * 0.38; // into the "u" of Luxury, nearer the middle
+  const R = rng(7);
+  radAng = [];
+  for (let i = 0; i < NRAD; i++) radAng.push((i + 0.15 + R() * 0.7) / NRAD * Math.PI * 2);
+  cells = [];
+  for (let i = 0; i < NRAD; i++) for (let j = 0; j < RINGS.length - 1; j++) {
+    const a0 = radAng[i], a1 = i + 1 < NRAD ? radAng[i + 1] : radAng[0] + Math.PI * 2;
+    const r0 = RINGS[j], r1 = RINGS[j + 1], pts = [], S = 14;
+    for (let k = 0; k <= S; k++) pts.push(warp(a0, lerp(r0, r1, k / S)));
+    for (let k = 1; k <= S; k++) pts.push(warp(lerp(a0, a1, k / S), r1));
+    for (let k = S - 1; k >= 0; k--) pts.push(warp(a1, lerp(r0, r1, k / S)));
+    if (r0 > 0) for (let k = S - 1; k >= 1; k--) pts.push(warp(lerp(a0, a1, k / S), r0));
+    const mid = warp((a0 + a1) / 2, (r0 + r1) / 2);
+    const rr = rng(100 + i * 13 + j * 7);
+    cells.push({ i, j, pts, mid, a: (a0 + a1) / 2, r0, r1,
+      jx: (rr() - .5), jy: (rr() - .5), jr: (rr() - .5), fall: null });
+  }
+  // two chips that drop off later: low cells under the word
+  const pick = (ang, ring) => cells.find(c => c.j === ring && Math.abs(((c.a - ang + Math.PI * 3) % (Math.PI * 2)) - Math.PI) < Math.PI / NRAD + 0.15);
+  const c1 = pick(Math.PI * 0.42, 1); if (c1) c1.fall = { t0: 2.62, vx: -40, spin: -2.2 };
+  const c2 = pick(Math.PI * 0.12, 3); if (c2) c2.fall = { t0: 3.05, vx: 70, spin: 1.6 };
+}
+function cellPath(g, c) { g.beginPath(); c.pts.forEach((p, k) => k ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.closePath(); }
+
+// ---------- particles ----------
+const DUST = [], SPARK = [];
+function buildParticles() {
+  const R = rng(42);
+  for (let i = 0; i < 260; i++) {
+    const ang = R() * Math.PI * 2, dist = 300 + R() * 700;
+    const tx = left + R() * textW, ty = lerp(capTop - 60, capBot + 60, R());
+    DUST.push({ sx: tx + Math.cos(ang) * dist, sy: ty + Math.sin(ang) * dist * 0.6, tx, ty,
+      t0: R() * 0.7, dur: 0.8 + R() * 0.6, size: 1.2 + Math.pow(R(), 3) * 4.5, ph: R() * 6.28,
+      fq: 3 + R() * 6, drift: 10 + R() * 30, vx: (R() - .5) * 160, vy: -60 - R() * 160 });
+  }
+  for (let i = 0; i < 26; i++) {
+    const l = letters[Math.floor(R() * letters.length)];
+    if (l.ch === ' ') { i--; continue; }
+    SPARK.push({ x: l.x + R() * l.w, y: lerp(capTop + 10, baseY, R()), t0: 0.7 + R() * 1.15, dur: 0.35 + R() * 0.3, s: 22 + R() * 40 });
+  }
+}
+
+// ---------- drawing pieces ----------
+function goldGrad(g, shift) {
+  const gr = g.createLinearGradient(0, capTop - 20, 0, baseY + 30);
+  gr.addColorStop(0.00, '#fff3c4'); gr.addColorStop(0.22, '#f7d36b'); gr.addColorStop(0.45, '#c8922c');
+  gr.addColorStop(0.55, '#8a5a12'); gr.addColorStop(0.68, '#d9a640'); gr.addColorStop(0.85, '#fbe39a'); gr.addColorStop(1.00, '#a8741e');
+  return gr;
+}
+function drawLetters(t) { // white mask of the letters with their entrance
+  const g = X.mask; g.clearRect(0, 0, W, H); g.font = FONT; g.textBaseline = 'alphabetic';
+  letters.forEach((l, i) => {
+    if (l.ch === ' ') return;
+    const k = prog(t, 0.08 + i * 0.055, 0.08 + i * 0.055 + 0.6);
+    if (k <= 0) return;
+    const e = backOut(k), blur = (1 - easeOut(k)) * 18;
+    g.save();
+    g.globalAlpha = clamp(k * 2.2);
+    g.filter = blur > 0.3 ? `blur(${blur.toFixed(2)}px)` : 'none';
+    g.translate(l.cx, baseY);
+    g.scale(lerp(0.82, 1, e), lerp(0.82, 1, e));
+    g.translate(0, (1 - e) * 60);
+    g.fillStyle = '#fff'; g.fillText(l.ch, -l.w / 2, 0);
+    g.restore();
+  });
+}
+function colorize(t, dullK) {
+  // gold version: gradient, bevel highlight, shimmer band
+  const g = X.gold; g.clearRect(0, 0, W, H);
+  g.globalCompositeOperation = 'source-over'; g.drawImage(L.mask, 0, 0);
+  g.globalCompositeOperation = 'source-in'; g.fillStyle = goldGrad(g); g.fillRect(0, 0, W, H);
+  // shimmer: diagonal light band sweeping across, twice before the hit
+  g.globalCompositeOperation = 'source-atop';
+  for (const [a, b] of [[0.55, 1.35], [1.45, 2.05]]) {
+    const k = prog(t, a, b); if (k <= 0 || k >= 1) continue;
+    const x = lerp(left - 400, left + textW + 400, easeInOut(k));
+    const sg = g.createLinearGradient(x - 160, 0, x + 160, 0);
+    sg.addColorStop(0, 'rgba(255,255,255,0)'); sg.addColorStop(0.5, 'rgba(255,253,235,0.95)'); sg.addColorStop(1, 'rgba(255,255,255,0)');
+    g.save(); g.translate(x, H / 2); g.transform(1, 0, -0.35, 1, 0, 0); g.translate(-x, -H / 2);
+    g.fillStyle = sg; g.fillRect(x - 160, 0, 320, H); g.restore();
+  }
+  g.globalCompositeOperation = 'source-over';
+  // dull version: flat cold grey-brown with grime
+  const d = X.dull; d.clearRect(0, 0, W, H);
+  d.globalCompositeOperation = 'source-over'; d.drawImage(L.mask, 0, 0);
+  d.globalCompositeOperation = 'source-in';
+  const dg = d.createLinearGradient(0, capTop, 0, baseY + 30);
+  dg.addColorStop(0, '#8d8a84'); dg.addColorStop(1, '#5d5a55'); d.fillStyle = dg; d.fillRect(0, 0, W, H);
+  d.globalCompositeOperation = 'source-atop';
+  const R = rng(5); // mottled grime: soft blotches + fine specks
+  for (let i = 0; i < 70; i++) { const x = left + R() * textW, y = lerp(capTop, capBot, R()), r = 20 + R() * 60;
+    const gg = d.createRadialGradient(x, y, 0, x, y, r); gg.addColorStop(0, 'rgba(45,40,34,0.22)'); gg.addColorStop(1, 'rgba(45,40,34,0)');
+    d.fillStyle = gg; d.fillRect(x - r, y - r, 2 * r, 2 * r); }
+  for (let i = 0; i < 900; i++) { d.fillStyle = R() < 0.5 ? 'rgba(30,27,24,0.28)' : 'rgba(200,196,188,0.16)';
+    d.fillRect(left + R() * textW, lerp(capTop, capBot, R()), 1 + R() * 2.5, 1 + R() * 2.5); }
+  d.globalCompositeOperation = 'source-over';
+  // text = mix
+  const tx = X.text; tx.clearRect(0, 0, W, H);
+  tx.globalAlpha = 1; tx.drawImage(L.gold, 0, 0);
+  if (dullK > 0) { tx.globalAlpha = dullK; tx.drawImage(L.dull, 0, 0); tx.globalAlpha = 1; }
+}
+function drawCracks(t) { // dark fissures with a light lip, grow out from the hit, only on the letters
+  const k = prog(t, T_HIT + 0.02, T_HIT + 0.42); if (k <= 0) return;
+  const reach = easeOut(k) * 1150, g = X.text;
+  g.save(); g.globalCompositeOperation = 'source-atop';
+  g.beginPath(); g.ellipse(HIT.x, HIT.y, reach * 1.25, reach * 0.8, 0, 0, 7); g.clip();
+  for (const pass of [{ c: 'rgba(255,255,255,0.35)', w: 2, dx: 1.5, dy: 1.5 }, { c: 'rgba(20,14,8,0.95)', w: 4.5, dx: 0, dy: 0 }]) {
+    g.strokeStyle = pass.c; g.lineJoin = 'round';
+    for (const c of cells) {
+      g.lineWidth = pass.w * (c.j < 2 ? 1.25 : c.j < 4 ? 1 : 0.7);
+      g.save(); g.translate(pass.dx, pass.dy); cellPath(g, c); g.stroke(); g.restore();
+    }
+  }
+  g.restore();
+}
+function drawGlow(t, glowK) {
+  if (glowK <= 0.001) return;
+  const g = X.glow; g.clearRect(0, 0, W, H);
+  g.filter = 'blur(26px)'; g.drawImage(L.gold, 0, 0);
+  g.filter = 'blur(70px)'; g.globalAlpha = 0.8; g.drawImage(L.gold, 0, 0); g.globalAlpha = 1; g.filter = 'none';
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = glowK; ctx.drawImage(L.glow, 0, 0); ctx.restore();
+}
+function drawText(t, crackK, src = L.text, whole = false) {
+  if (crackK <= 0 || whole) { ctx.drawImage(src, 0, 0); return; }
+  // after the hit the word is a set of shards: tiny offsets, then two chips fall
+  for (const c of cells) {
+    const open = easeOut(prog(t, T_HIT + 0.05, T_HIT + 0.5)) * (c.j === 0 ? 0 : 1);
+    let dx = c.jx * 7 * open + Math.cos(c.a) * 2.5 * open, dy = c.jy * 5 * open + Math.sin(c.a) * 2 * open + 3 * open;
+    let rot = c.jr * 0.012 * open, alpha = 1;
+    if (c.fall && t > c.fall.t0) {
+      const u = t - c.fall.t0; dx += c.fall.vx * u; dy += 1900 * u * u; rot += c.fall.spin * u * u * 1.5; alpha = clamp(1 - u / 0.9);
+    } else if (c.fall) { const w = prog(t, c.fall.t0 - 0.25, c.fall.t0); dx += Math.sin(t * 90) * 1.5 * w; }
+    if (alpha <= 0) continue;
+    ctx.save(); ctx.globalAlpha = alpha;
+    ctx.translate(c.mid[0] + dx, c.mid[1] + dy); ctx.rotate(rot); ctx.translate(-c.mid[0], -c.mid[1]);
+    cellPath(ctx, c); ctx.clip(); ctx.drawImage(src, 0, 0); ctx.restore();
+  }
+}
+function drawDust(t, dullK) {
+  ctx.save();
+  for (const p of DUST) {
+    let x, y, a, size = p.size, col;
+    if (t < T_HIT) {
+      const k = prog(t, p.t0, p.t0 + p.dur); if (k <= 0) continue;
+      const e = easeOut(k);
+      x = lerp(p.sx, p.tx, e) + Math.sin(t * 1.3 + p.ph) * p.drift;
+      y = lerp(p.sy, p.ty, e) + Math.cos(t * 1.1 + p.ph) * p.drift * 0.6 - (t - p.t0) * 12;
+      const tw = 0.55 + 0.45 * Math.sin(t * p.fq + p.ph);
+      a = clamp(k * 3) * tw; col = [255, lerp(200, 240, tw), lerp(90, 170, tw)];
+    } else { // the hit throws them, then they fall as grey ash
+      const u = t - T_HIT, k0 = prog(T_HIT, p.t0, p.t0 + p.dur); if (k0 <= 0) continue;
+      const e = easeOut(k0);
+      const x0 = lerp(p.sx, p.tx, e) + Math.sin(T_HIT * 1.3 + p.ph) * p.drift;
+      const y0 = lerp(p.sy, p.ty, e) + Math.cos(T_HIT * 1.1 + p.ph) * p.drift * 0.6 - (T_HIT - p.t0) * 12;
+      x = x0 + p.vx * u; y = y0 + p.vy * u + 700 * u * u;
+      a = clamp(1 - u / 1.3) * k0; size *= lerp(1, 0.7, clamp(u));
+      const g = clamp(u / 0.35); col = [lerp(255, 120, g), lerp(220, 115, g), lerp(130, 108, g)];
+    }
+    if (a <= 0.01) continue;
+    ctx.globalCompositeOperation = t < T_HIT + 0.2 ? 'lighter' : 'source-over';
+    const r = size * (t < T_HIT ? 3.2 : 1.4);
+    const gr = ctx.createRadialGradient(x, y, 0, x, y, r);
+    gr.addColorStop(0, `rgba(${col.map(Math.round)},${a})`); gr.addColorStop(0.35, `rgba(${col.map(Math.round)},${a * 0.5})`); gr.addColorStop(1, `rgba(${col.map(Math.round)},0)`);
+    ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+  }
+  ctx.restore();
+}
+function star(x, y, s, a, rays = 4, rot = 0) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.globalCompositeOperation = 'lighter';
+  const gr = ctx.createRadialGradient(0, 0, 0, 0, 0, s * 0.45);
+  gr.addColorStop(0, `rgba(255,255,255,${a})`); gr.addColorStop(0.3, `rgba(255,236,170,${a * 0.6})`); gr.addColorStop(1, 'rgba(255,200,90,0)');
+  ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(0, 0, s * 0.45, 0, 7); ctx.fill();
+  for (let i = 0; i < rays; i++) {
+    ctx.rotate(Math.PI * 2 / rays); const len = s * (i % 2 ? 0.75 : 1.1);
+    const lg = ctx.createLinearGradient(0, 0, len, 0);
+    lg.addColorStop(0, `rgba(255,255,240,${a})`); lg.addColorStop(1, 'rgba(255,220,140,0)');
+    ctx.fillStyle = lg; ctx.beginPath(); ctx.moveTo(0, -s * 0.05); ctx.lineTo(len, 0); ctx.lineTo(0, s * 0.05); ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+}
+function drawSparkles(t, glowK) {
+  for (const s of SPARK) {
+    const k = prog(t, s.t0, s.t0 + s.dur); if (k <= 0 || k >= 1) continue;
+    star(s.x, s.y, s.s * Math.sin(k * Math.PI), Math.sin(k * Math.PI) * glowK, 4, k * 0.8);
+  }
+}
+function drawFlare(t) { // the glint at 2.0 s: anamorphic streak, star, ring, overexposed word
+  const up = prog(t, T_HIT - 0.07, T_HIT), down = 1 - easeOut(prog(t, T_HIT, T_HIT + 0.45));
+  const a = t < T_HIT ? easeInOut(up) : down; if (a <= 0.003) return;
+  // word overexposes to white
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = a * 0.85;
+  X.glow.clearRect(0, 0, W, H); X.glow.filter = 'blur(6px)'; X.glow.drawImage(L.mask, 0, 0); X.glow.filter = 'none';
+  ctx.drawImage(L.glow, 0, 0); ctx.restore();
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  // horizontal streak across the frame
+  const sw = W * lerp(0.5, 1.3, a);
+  const lg = ctx.createLinearGradient(HIT.x - sw / 2, 0, HIT.x + sw / 2, 0);
+  lg.addColorStop(0, 'rgba(255,230,170,0)'); lg.addColorStop(0.5, `rgba(255,255,250,${a})`); lg.addColorStop(1, 'rgba(255,230,170,0)');
+  ctx.fillStyle = lg; ctx.fillRect(HIT.x - sw / 2, HIT.y - 3 * a - 1, sw, 6 * a + 2);
+  ctx.globalAlpha = 0.5; ctx.fillRect(HIT.x - sw / 2, HIT.y - 14 * a, sw, 28 * a); ctx.globalAlpha = 1;
+  // core bloom
+  const rg = ctx.createRadialGradient(HIT.x, HIT.y, 0, HIT.x, HIT.y, 420 * a);
+  rg.addColorStop(0, `rgba(255,255,255,${a})`); rg.addColorStop(0.15, `rgba(255,248,215,${a * 0.75})`); rg.addColorStop(1, 'rgba(255,215,120,0)');
+  ctx.fillStyle = rg; ctx.beginPath(); ctx.arc(HIT.x, HIT.y, 420 * a, 0, 7); ctx.fill();
+  // ring
+  const rr = lerp(60, 380, 1 - down);
+  ctx.strokeStyle = `rgba(255,240,200,${a * 0.35})`; ctx.lineWidth = 6; ctx.beginPath(); ctx.ellipse(HIT.x, HIT.y, rr * 1.3, rr, 0, 0, 7); ctx.stroke();
+  ctx.restore();
+  star(HIT.x, HIT.y, 520 * a, a, 4, 0.12);
+  star(HIT.x, HIT.y, 300 * a, a * 0.7, 4, 0.12 + Math.PI / 4);
+}
+
+// ---------- frame ----------
+window.seek = function (t) {
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+  ctx.clearRect(0, 0, W, H);
+  if (BG === 'green') { ctx.fillStyle = '#00ff00'; ctx.fillRect(0, 0, W, H); }
+  const dullK = easeInOut(prog(t, T_HIT + 0.04, T_HIT + 0.55)) * lerp(0.92, 1, prog(t, 2.6, 3.6));
+  const crackK = t >= T_HIT + 0.02 ? 1 : 0;
+  const glowBase = t < T_HIT ? clamp(prog(t, 0.3, 1.2)) * (0.62 + 0.18 * Math.sin(t * 5.5)) : 0.85 * (1 - easeOut(prog(t, T_HIT, T_HIT + 0.35)));
+
+  // camera: slow push in before, a jolt at the hit, then a sag
+  const shake = t > T_HIT ? Math.exp(-(t - T_HIT) * 9) * 14 : 0;
+  const sx = Math.sin(t * 97) * shake, sy = Math.cos(t * 83) * shake;
+  const sc = t < T_HIT ? lerp(0.96, 1.0, easeOut(prog(t, 0, T_HIT))) : lerp(1.0, 0.985, easeInOut(prog(t, T_HIT + 0.3, 4)));
+  const sag = easeInOut(prog(t, 2.4, 3.8)) * 10;
+  ctx.translate(W / 2 + sx, H / 2 + sy + sag); ctx.scale(sc, sc); ctx.translate(-W / 2, -H / 2);
+
+  drawLetters(t);
+  colorize(t, dullK);
+  drawCracks(t);
+  drawGlow(t, glowBase);
+  // depth: a soft dark shadow, then a darker extruded copy 6 px down, then the face
+  X.glow.clearRect(0, 0, W, H); X.glow.drawImage(L.mask, 0, 0);
+  X.glow.globalCompositeOperation = 'source-in';
+  X.glow.fillStyle = `rgb(${Math.round(lerp(92, 52, dullK))},${Math.round(lerp(58, 50, dullK))},${Math.round(lerp(8, 46, dullK))})`;
+  X.glow.fillRect(0, 0, W, H); X.glow.globalCompositeOperation = 'source-over';
+  ctx.save(); ctx.globalAlpha = 0.45; ctx.filter = 'blur(14px)'; ctx.translate(0, 14); drawText(t, crackK, L.glow, true); ctx.restore();
+  ctx.save(); ctx.translate(0, 6); drawText(t, crackK, L.glow); ctx.restore();
+  drawText(t, crackK);
+  drawSparkles(t, glowBase > 0 ? 1 : 0);
+  drawDust(t, dullK);
+  drawFlare(t);
+};
+document.fonts.load(FONT).then(() => { layout(); buildCracks(); buildParticles(); window.ready = true; window.seek(0); });
+</script>
+</body>
+</html>
