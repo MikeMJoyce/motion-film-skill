@@ -1,0 +1,57 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>motion film</title>
+<!-- favicon: replace with the film's own mark (inline SVG data URI) -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='6' y='14' width='52' height='36' rx='8' fill='%23141414'/%3E%3Cpath d='M27 24l12 8-12 8z' fill='%23ffffff'/%3E%3C/svg%3E">
+<style>
+  /* One display face, one UI face. Point these at the brand's real files in assets/fonts/ (capture.mjs lists them). */
+  @font-face { font-family: 'Display'; src: url(../assets/fonts/v/google-sans-cyrillic.woff2) format('woff2'); font-weight: 100 900; unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+  @font-face { font-family: 'Display'; src: url(../assets/fonts/v/google-sans-latin.woff2) format('woff2'); font-weight: 100 900; unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+  :root {
+    /* style guide tokens: ONE accent unless the brief says otherwise */
+    --bg: #00ff00; --ink: #1d4e5c; --ink-2: #1d4e5c; --accent: #e8262b; --card: #ffffff;
+  }
+  html, body { margin: 0; background: #000; overflow: hidden; }
+  #stage { position: relative; overflow: hidden; background: var(--bg); transform-origin: 0 0;
+           font-family: 'UI', 'Helvetica Neue', Arial, sans-serif; color: var(--ink);
+           -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+  .scene { position: absolute; inset: 0; overflow: hidden; }
+  .abs { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+  .display { font-family: 'Display', 'Helvetica Neue', Arial, sans-serif; font-weight: 600; letter-spacing: -0.04em;
+             line-height: 0.95; white-space: nowrap; }
+  /* a line is a mask: words rise through it. Padding keeps descenders; start words >= 140% below so no sliver shows. */
+  .line { position: absolute; overflow: hidden; padding: 0.08em 0.04em 0.18em; margin: -0.08em -0.04em 0; white-space: nowrap; }
+  .word { display: inline-block; }
+  .card { position: absolute; background: var(--card); border-radius: 28px;
+          box-shadow: 0 2px 6px rgba(0,0,0,.05), 0 30px 80px -20px rgba(0,0,0,.22); }
+  body.play { display: block; }
+  .cap { position: absolute; overflow: hidden; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script src="lib/motion.js"></script>
+<script src="data.js"></script>
+<script src="core.js"></script>
+<script src="lib/camera.js"></script>
+<script src="lib/footage.js"></script>
+<script src="type.js"></script>
+<script src="lib/captions.js"></script>
+<script src="lib/props.js"></script>
+<script src="lib/blocks.js"></script>
+<script src="lib/graphics.js"></script>
+<script src="lib/illustrations.js"></script>
+<script src="lib/actor-hands.js"></script>
+<script src="lib/actor.js"></script>
+<script src="lib/lipsync.js"></script>
+<script src="lib/puppet.js"></script>
+<script src="lib/causal.js"></script>
+<script src="lib/morph.js"></script>
+<script src="../assets/figures/figures.js"></script>
+<script src="lib/iso.js"></script>
+<script src="lib/themes.js"></script>
+<script src="film.js"></script>
+</body>
+</html>

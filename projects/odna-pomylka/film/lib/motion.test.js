@@ -1,0 +1,69 @@
+// node lib/motion.test.js
+const M = require('./motion.js');
+let failed = 0;
+const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) failed++; };
+const peak = (p) => { let m = 0; for (let t = 0; t < 3; t += 1e-4) m = Math.max(m, M.step(t, p)); return m; };
+
+for (const p of Object.keys(M.PRESETS)) {
+  console.log(`  ${p.padEnd(8)} overshoot ${((peak(p) - 1) * 100).toFixed(2)}%  settle(1%) ${M.settle(p).toFixed(3)}s`);
+}
+ok(M.step(0) === 0 && M.step(-1) === 0, 'step is 0 at and before release');
+ok(peak('heavy') <= 1 + 1e-12, 'heavy never overshoots');
+ok(peak('snappy') - 1 < 0.02 && peak('default') - 1 < 0.01, 'UI presets overshoot < 2%');
+ok(peak('playful') - 1 > 0.1, 'playful overshoot is visible');
+
+const keys = [[0, 0], [0.1, 100], [0.2, -50]];
+const f = (t) => M.track(t, keys);
+const v = (t) => (f(t + 1e-5) - f(t - 1e-5)) / 2e-5;
+ok(Math.abs(f(0.2 - 1e-6) - f(0.2 + 1e-6)) < 1e-2, 'track is continuous across a new key');
+ok(Math.abs(v(0.2 + 1e-5) - v(0.2 - 1e-5)) < 5, 'track keeps velocity through a new key (no restart)');
+ok(Math.abs(f(5) + 50) < 1e-6, 'track settles on last target');
+
+for (const [name, st] of [['right', [[0, 0, 100], [0.1, 500, 600]]], ['left', [[0, 500, 600], [0.1, 0, 100]]]]) {
+  let maxS = 0;
+  for (let t = 0.1; t < 1; t += 0.001) maxS = Math.max(maxS, M.indicator(t, st).size);
+  ok(maxS > 150, `indicator stretches moving ${name} (peak ${maxS.toFixed(0)} vs 100)`);
+  ok(Math.abs(M.indicator(5, st).size - 100) < 1e-6, `indicator settles back after moving ${name}`);
+}
+
+ok(M.swapAlpha(1.0, 1, 2) === 0 && M.swapAlpha(1.05, 1, 2) === 0, 'swapAlpha waits past morph start');
+ok(M.swapAlpha(1.5, 1, 2) > 0.99, 'swapAlpha fully in mid-hold');
+ok(M.swapAlpha(2, 1, 2) < 0.005, 'swapAlpha gone by next morph');
+ok(M.loopT(4, 4) === 0 && M.loopT(4 - 1 / 120, 4, 60) === 0 && M.loopT(-1, 4) === 3 && M.loopT(1, 4) === 1,
+  'loopT pins last frame to first');
+
+// soft start: same end state, no acceleration jump at release, continuous, never past 1 for a critical spring
+{
+  const hardP = { response: 0.5, damping: 1 }, softP = { ...hardP, soft: 0.12 };
+  const acc = (p, t, h = 1e-4) => (M.step(t + h, p) - 2 * M.step(t, p) + M.step(t - h, p)) / (h * h);
+  ok(Math.abs(M.step(5, softP) - 1) < 1e-9, 'soft spring settles on target');
+  ok(Math.abs(acc(softP, 0.002)) < 0.2 * Math.abs(acc(hardP, 0.002)), `soft start: accel right after release ${acc(softP, 0.002).toFixed(1)} vs hard ${acc(hardP, 0.002).toFixed(1)}`);
+  let jump = 0;
+  for (let t = 0; t < 2; t += 1e-3) jump = Math.max(jump, Math.abs(M.step(t + 1e-3, softP) - M.step(t, softP)));
+  ok(jump < 0.02, 'soft spring is continuous');
+  ok(peak(softP) <= 1 + 1e-9, 'soft critical spring never overshoots');
+  const zs = [{ response: 0.4, damping: 0.6 }, { response: 0.4, damping: 1.4 }];
+  for (const p of zs) {
+    // closed-form gap matches numeric integration
+    const T = 0.1, tau = 0.37; let num = 0; const n = 20000;
+    for (let i = 0; i < n; i++) num += M.step(tau - T + ((i + 0.5) / n) * T, p) / n;
+    ok(Math.abs(M.step(tau, { ...p, soft: T }) - num) < 1e-6, `soft closed form = numeric mean (ζ ${p.damping})`);
+  }
+  ok(M.step(0.3, 'camera') < M.step(0.3, 'heavy'), 'camera role starts soft');
+}
+
+process.exitCode = failed ? 1 : 0;
+
+// motion tokens: roles resolve to presets, configure() retunes them
+{
+  const M = require('./motion.js');
+  const eq = (a, b, m) => { if (Math.abs(a - b) > 1e-12) throw new Error(m + `: ${a} vs ${b}`); };
+  eq(M.step(0.3, 'text'), M.step(0.3, 'heavy'), 'role text = heavy');
+  eq(M.step(0.3, 'enter'), M.step(0.3, 'default'), 'role enter = default');
+  M.configure({ roles: { enter: 'snappy' } });
+  eq(M.step(0.3, 'enter'), M.step(0.3, 'snappy'), 'configure retargets a role');
+  M.configure({ roles: { enter: 'default' } });
+  let threw = false; try { M.step(0.3, 'nope'); } catch { threw = true; }
+  if (!threw) throw new Error('unknown role must throw');
+  console.log('motion tokens ok');
+}

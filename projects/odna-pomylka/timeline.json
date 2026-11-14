@@ -1,0 +1,14 @@
+{
+  "note": "Silent clean clip, 16:9, chroma-green background. bpm 60 → 1 beat = 1 s, so marks are seconds.",
+  "title": "Одна помилка — кінетичний текст",
+  "duration": 8.5,
+  "fps": 60,
+  "bpm": 60,
+  "formats": ["16x9"],
+  "voiceover": null,
+  "music": { "source": "none" },
+  "styleframes": [{ "at": 2.99, "name": "typed" }, { "at": 4.9, "name": "hold" }, { "at": 5.75, "name": "shatter" }, { "at": 8.4, "name": "end" }],
+  "motion": { "roles": {}, "stagger": 0.05 },
+  "marks": { "l1": 0, "l2": 1, "l3": 2, "hold": 3, "fall": 5, "hit": 5.38, "done": 8.5 },
+  "sfx": []
+}

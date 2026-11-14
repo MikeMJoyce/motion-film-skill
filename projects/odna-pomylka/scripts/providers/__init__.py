@@ -1,0 +1,109 @@
+"""Pluggable audio providers for motion-film: voice (TTS), transcription (voice check) and music.
+
+A provider is a module in this package that defines any of:
+  NAME, KEY_ENV                         display name and the env var holding its key (checked, never printed)
+  tts(text, voice, model=None, direction='', lang=None) -> bytes   raw PCM s16le, 24 kHz, mono
+  transcribe(path, lang=None) -> str                               verbatim text of an audio file
+  music(prompt, seconds, model=None) -> (bytes, ext)               an instrumental track ('mp3' or 'wav')
+  voices(lang=None) -> list[dict]                                  optional: voice catalogue for picking
+  DEFAULT_VOICE, DEFAULT_MODEL, VOICE_HINT                         optional defaults
+
+Built in: elevenlabs, openrouter, openai, speechkit (+ a corporate gateway in some copies). "auto" (the default) walks
+"auto_order" from defaults(.local).json and picks the first provider that is available here (its key is set, or its
+available() says so); providers not in that list are never picked by "auto", only by name. Anything else (a corporate proxy, a local engine) is one more file here;
+see reference/PROVIDERS.md. A provider missing from this copy of the skill fails with a clear message.
+
+Settings resolve in this order: command-line flags → the project's timeline.json ("voiceover", "music") →
+<skill>/defaults.local.json (personal, never published) → <skill>/defaults.json.
+"""
+import importlib, json, os, sys
+
+_here = os.path.dirname(os.path.abspath(__file__))
+# in the skill: <skill>/scripts/providers; in a project copy: .skill (written by init.sh) points back at the skill
+SKILL = open(os.path.join(_here, '.skill')).read().strip() if os.path.exists(os.path.join(_here, '.skill')) else os.path.dirname(os.path.dirname(_here))
+
+
+def load(name):
+    if not name or name in ('none', 'file', 'synth'):
+        raise SystemExit(f'"{name}" is not an API provider')
+    try:
+        return importlib.import_module(f'providers.{name}')
+    except ModuleNotFoundError as e:
+        if e.name == f'providers.{name}':
+            have = sorted(f[:-3] for f in os.listdir(os.path.dirname(__file__)) if f.endswith('.py') and not f.startswith('_'))
+            raise SystemExit(f'provider "{name}" is not in this copy of the skill (available: {", ".join(have)})')
+        raise
+
+
+AUTO_ORDER = ('elevenlabs', 'openrouter', 'openai')   # used only when defaults(.local).json has no "auto_order"
+
+
+def resolve(name, fn='tts'):
+    """"auto" → the first provider of "auto_order" that is available and has fn(); anything else as is."""
+    if name != 'auto': return name
+    order = defaults().get('auto_order') or AUTO_ORDER
+    for n in order:
+        try: m = importlib.import_module(f'providers.{n}')
+        except ModuleNotFoundError: continue
+        if not hasattr(m, fn): continue
+        ok = m.available() if hasattr(m, 'available') else has_key(getattr(m, 'KEY_ENV', None))
+        if ok:
+            print(f'provider auto → {n} (first available of {" → ".join(order)})', file=sys.stderr); return n
+    raise SystemExit(f'provider "auto": none of {" → ".join(order)} is available here (no key / no login). '
+                     'Set one up, or pass --provider / timeline.json "voiceover.provider" (reference/PROVIDERS.md)')
+
+
+def need(mod, fn):
+    if not hasattr(mod, fn):
+        raise SystemExit(f'provider {mod.NAME} has no {fn}(): pick another one for this step (reference/PROVIDERS.md)')
+    return getattr(mod, fn)
+
+
+def defaults():
+    out = {}
+    for f in ('defaults.json', 'defaults.local.json'):
+        p = os.path.join(SKILL, f)
+        if os.path.exists(p):
+            for k, v in json.load(open(p, encoding='utf-8')).items():
+                if isinstance(v, dict) and isinstance(out.get(k), dict): out[k] = {**out[k], **v}
+                elif not k.startswith('_'): out[k] = v
+    return out
+
+
+def settings(section, project='.'):
+    """Merged settings for "voiceover" / "transcribe" / "music": defaults, then the project's timeline.json."""
+    s = dict(defaults().get(section) or {})
+    tl = os.path.join(project, 'timeline.json')
+    if os.path.exists(tl):
+        v = json.load(open(tl, encoding='utf-8')).get(section)
+        if isinstance(v, dict): s.update({k: x for k, x in v.items() if x not in (None, '')})
+    return s
+
+
+def _keyfile(env):
+    # <ENV>_FILE, plus voice-film's spelling (OPENROUTER_KEY_FILE for OPENROUTER_API_KEY)
+    for f in (env + '_FILE', env.replace('_API_KEY', '_KEY_FILE').replace('_TOKEN', '_TOKEN_FILE')):
+        if os.environ.get(f): return os.environ[f]
+
+
+try:   # corporate copy only: credentials from the company skill store (not in the public skill)
+    from ._store_auth import token as _store_token, slug as _store_slug
+except ImportError:
+    _store_token = lambda env: None
+    _store_slug = None
+
+
+def has_key(env):
+    return bool(env and (os.environ.get(env) or _keyfile(env) or _store_token(env)))
+
+
+def key(env, hint=''):
+    """The secret: the company store's credential where that module exists, else the environment (or a file named by
+    <ENV>_FILE). Never printed, never written anywhere."""
+    k = _store_token(env) or os.environ.get(env)
+    if not k and _keyfile(env):
+        k = open(_keyfile(env)).read().strip()
+    if not k:
+        how = f'`store setup-token {_store_slug(env)}` or set it in' if _store_slug else 'set it in'
+        raise SystemExit(f'{env} is not set: {how} the environment of this command{": " + hint if hint else ""}')
+    return k
