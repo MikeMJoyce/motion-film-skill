@@ -1,0 +1,66 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+  html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:transparent}
+  svg{display:block}
+</style></head>
+<body>
+<svg id="s" width="1920" height="1080" viewBox="0 0 1920 1080" xmlns="http://www.w3.org/2000/svg">
+  <g id="folder">
+    <g id="tilt">
+      <!-- back panel (yellow) -->
+      <rect x="-16" y="-36" width="500" height="560" rx="60" fill="#FFE04B"/>
+      <!-- sticker -->
+      <g id="sticker">
+        <g transform="rotate(-3 150 110)">
+          <path id="stickerShape" d="M0,28 A28 28 0 0 1 28,0 L248,0 Q266,0 274,17 L318,112 L318,240 L0,240 Z" fill="#0ab8de"/>
+          <text id="stickerText" x="36" y="68" font-family="Manrope" font-weight="700" font-size="54" fill="#fff" letter-spacing="-1">Кейс 1</text>
+        </g>
+      </g>
+      <!-- front panel (cream) -->
+      <path d="M0,170 A60 60 0 0 1 60,110 L292,110 C350,110 346,0 408,0 L840,0 A60 60 0 0 1 900,60 L900,520 A60 60 0 0 1 840,580 L60,580 A60 60 0 0 1 0,520 Z" fill="#EEEDE0"/>
+      <!-- logo -->
+      <text x="128" y="336" font-family="Manrope" font-weight="800" font-size="214" fill="#25282B" letter-spacing="-8">Кейс</text>
+      <g stroke="#0ab8de" stroke-width="10" stroke-linecap="round" fill="none">
+        <line x1="640" y1="140" x2="644" y2="172"/>
+        <line x1="668" y1="168" x2="726" y2="112"/>
+        <line x1="676" y1="204" x2="730" y2="188"/>
+      </g>
+      <text x="410" y="446" font-family="Caveat" font-weight="700" font-size="236" fill="#0ab8de" letter-spacing="2">опис</text>
+      <text x="790" y="522" text-anchor="end" font-family="Manrope" font-weight="600" font-size="44" fill="#25282B" letter-spacing="-0.5">by SendPulse</text>
+    </g>
+  </g>
+</svg>
+<script>
+const W=900, H=580, CX=960, CY=540, OFF=1050;
+const CASES=[["Кейс 1","#0ab8de"],["Кейс 2","#9d58ee"],["Кейс 3","#82d730"],["Кейс 4","#235360"],["Кейс 5","#ff5252"]];
+const T={folderIn:[0.05,0.80], stickerOut:[0.62,1.12], stickerIn:[3.20,3.55], folderOut:[3.50,4.05], dur:4.40};
+const clamp=x=>Math.min(1,Math.max(0,x));
+const prog=(t,[a,b])=>clamp((t-a)/(b-a));
+const outBack=(p,s=1.5)=>1+(s+1)*Math.pow(p-1,3)+s*Math.pow(p-1,2);
+const inBack=(p,s=1.5)=>(s+1)*p*p*p-s*p*p;
+const outCubic=p=>1-Math.pow(1-p,3), inCubic=p=>p*p*p;
+const STK_SHOWN=-22, STK_HIDDEN=178;
+window.render=(ci,t)=>{
+  const [label,color]=CASES[ci];
+  document.getElementById('stickerShape').setAttribute('fill',color);
+  document.getElementById('stickerText').textContent=label;
+  // folder
+  let dy, rot;
+  if(t<T.folderOut[0]){ const p=prog(t,T.folderIn); dy=OFF*(1-outBack(p,1.25)); rot=7*(1-outCubic(p)); }
+  else { const p=prog(t,T.folderOut); dy=OFF*inBack(p,1.4); rot=-6*inCubic(p); }
+  // sticker
+  let s, srot;
+  if(t<T.stickerIn[0]){ const p=prog(t,T.stickerOut); s=outBack(p,1.8); srot=-6*(1-outCubic(p)); }
+  else { const p=prog(t,T.stickerIn); s=1-inBack(p,1.6); srot=-4*inCubic(p); }
+  const sy=STK_HIDDEN+(STK_SHOWN-STK_HIDDEN)*s;
+  document.getElementById('sticker').setAttribute('transform',`translate(26 ${sy}) rotate(${srot} 0 240)`);
+  const ox=CX-W/2, oy=CY-(H-38)/2-38+dy;
+  document.getElementById('folder').setAttribute('transform',`translate(${ox} ${oy})`);
+  document.getElementById('tilt').setAttribute('transform',`rotate(${rot} ${W/2} ${H})`);
+};
+window.DUR=T.dur;
+window.render(0,2);
+</script>
+</body></html>
